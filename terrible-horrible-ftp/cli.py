@@ -1,11 +1,16 @@
 import argparse
 import logging
 
+from server import FTPServer
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(__name__)
 
     levels = ('DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL')
     parser.add_argument("--log-level", default="INFO", choices=levels)
+
+    parser.add_argument("--host", default="")
+    parser.add_argument("--port", "-p", type=int, default=21)
 
     options = parser.parse_args()
 
@@ -21,3 +26,5 @@ if __name__ == '__main__':
     term.setFormatter(formatter)
 
     logging.getLogger('').addHandler(term)
+
+    FTPServer((options.host, options.port)).listen()
