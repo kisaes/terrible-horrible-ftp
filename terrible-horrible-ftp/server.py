@@ -63,6 +63,29 @@ class FTPConnection:
         self.thread_pool = thread_pool
         self.buffered_reader = _socket.makefile()
 
+        self.log = logging.getLogger("{:s}:{:d}".format(*address))
+        self.socket.send(b"220 Service ready for new user\r\n")
+
     def _read_command(self):
-        self.socket.close()
-        self.selector.unregister(self.socket)
+        self.log.debug("heads up! network activity")
+        line = self.buffered_reader.readline()
+
+        if not line:
+            self.log.debug("connection closed by client")
+            self.socket.close()
+
+            self.buffered_reader.close()
+            self.selector.unregister(self.socket)
+
+        else:
+            command, *args = line.split()
+            self.log.debug("command=%s, args=%s", command, args)
+
+            code, message = 502, "Not implemented"
+            method = getattr(self, f"{command.lower()}_command", None)
+
+            if method is not None:
+                code, message = method(*args)
+
+            self.log.debug('code=%d, message="%s"', code, message)
+            self.socket.send(f"{code} {message}\r\n".encode())
