@@ -66,6 +66,7 @@ class FTPConnection:
         self.buffered_reader = _socket.makefile()
 
         self.current_directory = "/home"
+        self._transfer_socket = None
 
         self.log = logging.getLogger("{:s}:{:d}".format(*address))
         self.socket.send(b"220 Service ready for new user\r\n")
@@ -125,6 +126,29 @@ class FTPConnection:
         # noinspection PyProtectedMember
         self.selector.register(self.socket, selectors.EVENT_READ,
                                FTPConnection(self.socket, self.address, self.selector, self.thread_pool)._read_command)
+
+    def port_command(self, weird_address):
+        self._transfer_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
+
+        split = weird_address.split(",")
+        address = ".".join(split[:4]), (int(split[4]) << 8) + int(split[5])
+
+        self._transfer_socket.connect(address)
+        return 200, "Okay"
+
+    def pasv_command(self):
+        # noinspection PyAttributeOutsideInit
+        self._passive_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
+        self._passive_socket.listen()
+
+        address = self._passive_socket.getsockname()
+        return 227, f"{address[0].replace(".", ",")},{address[1] >> 8},{address[1] & 0xff}"
+
+    @property
+    def transfer_socket(self):
+        if self._transfer_socket is None:
+            self._transfer_socket, _ = self._passive_socket.accept()
+        return self._transfer_socket
 
     # noinspection SpellCheckingInspection
     def syst_command(self):
