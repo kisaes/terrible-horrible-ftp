@@ -1,5 +1,6 @@
 import concurrent.futures
 import logging
+import os.path
 import selectors
 import socket
 
@@ -64,6 +65,8 @@ class FTPConnection:
         self.thread_pool = thread_pool
         self.buffered_reader = _socket.makefile()
 
+        self.current_directory = "/home"
+
         self.log = logging.getLogger("{:s}:{:d}".format(*address))
         self.socket.send(b"220 Service ready for new user\r\n")
 
@@ -93,3 +96,39 @@ class FTPConnection:
 
     def user_command(self, _):
         return 230, "Login successful"
+
+    def _resolve_path(self, path):
+        return os.path.normpath(os.path.join(self.current_directory, path))
+
+    def cwd_command(self, path):
+        new_path = self._resolve_path(path)
+
+        if not os.path.exists(new_path):
+            return 550, f"{new_path} does not exist"
+
+        self.current_directory = new_path
+        return 250, self.current_directory
+
+    # noinspection SpellCheckingInspection
+    def cdup_command(self):
+        self.current_directory = os.path.dirname(self.current_directory)
+        return 200, self.current_directory
+
+    def pwd_command(self):
+        return 257, f'"{self.current_directory}"'
+
+    def quit_command(self):
+        return 221, "Service closing control connection"
+
+    def rein_command(self):
+        self.selector.unregister(self.socket)
+        # noinspection PyProtectedMember
+        self.selector.register(self.socket, selectors.EVENT_READ,
+                               FTPConnection(self.socket, self.address, self.selector, self.thread_pool)._read_command)
+
+    # noinspection SpellCheckingInspection
+    def syst_command(self):
+        return 215, "UNIX"
+
+    def noop_command(self):
+        return 200, "Okay"
