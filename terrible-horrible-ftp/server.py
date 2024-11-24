@@ -53,6 +53,7 @@ class FTPServer:
             self.thread_pool.shutdown(cancel_futures=True)
 
 
+# noinspection PyMethodMayBeStatic
 class FTPConnection:
 
     def __init__(self, _socket: socket.socket, address, selector, thread_pool):
@@ -89,3 +90,6 @@ class FTPConnection:
 
             self.log.debug('code=%d, message="%s"', code, message)
             self.socket.send(f"{code} {message}\r\n".encode())
+
+    def user_command(self, _):
+        return 230, "Login successful"
