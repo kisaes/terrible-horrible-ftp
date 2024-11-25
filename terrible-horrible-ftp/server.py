@@ -92,7 +92,10 @@ class FTPConnection:
             method = getattr(self, f"{command.lower()}_command", None)
 
             if method is not None:
-                code, message = method(*args)
+                try:
+                    code, message = method(*args)
+                except OSError as error:
+                    code, message = 550, error.strerror
 
             self.log.debug('code=%d, message="%s"', code, message)
             self.socket.send(f"{code} {message}\r\n".encode())
@@ -220,6 +223,35 @@ class FTPConnection:
     def _sendfile(self, path):
         with open(path, "rb") as file:
             self.transfer_socket.sendfile(file)
+
+    # noinspection SpellCheckingInspection
+    def rnfr_command(self, path):
+        target_path = self._resolve_path(path)
+
+        if not os.path.exists(target_path):
+            return 550, f"{target_path} does not exist"
+
+        # noinspection PyAttributeOutsideInit
+        self._rename_from = target_path
+        return 350, "Pending further information"
+
+    # noinspection SpellCheckingInspection
+    def rnto_command(self, path):
+        shutil.move(self._rename_from, self._resolve_path(path))
+        return 250, "Okay"
+
+    # noinspection SpellCheckingInspection
+    def dele_command(self, path):
+        os.remove(self._resolve_path(path))
+        return 250, "Okay"
+
+    def rmd_command(self, path):
+        os.rmdir(self._resolve_path(path))
+        return 250, "Okay"
+
+    def mkd_command(self, path):
+        os.mkdir(self._resolve_path(path))
+        return 250, "Okay"
 
     # noinspection SpellCheckingInspection
     def syst_command(self):
