@@ -2,6 +2,7 @@ import concurrent.futures
 import logging
 import os.path
 import selectors
+import shutil
 import socket
 import subprocess
 
@@ -190,6 +191,35 @@ class FTPConnection:
     def _list_send(self, path):
         file_list = subprocess.run(["ls", "-lA", path], capture_output=True).stdout
         self.transfer_socket.send(file_list.replace(b"\n", b"\r\n"))
+
+    def stor_command(self, path):
+        self.thread_pool.submit(self._getfile, self._resolve_path(path)).add_done_callback(self._end_transfer)
+        return 125, "Data connection already open, transfer in progress"
+
+    # noinspection SpellCheckingInspection
+    def _getfile(self, path):
+        with open(path, "wb") as file, self.transfer_socket.makefile("rb") as stream:
+            shutil.copyfileobj(stream, file)
+
+    # noinspection SpellCheckingInspection
+    def appe_command(self, path):
+        self.thread_pool.submit(self._append_file, self._resolve_path(path)).add_done_callback(self._end_transfer)
+        return 125, "Data connection already open, transfer in progress"
+
+    # noinspection SpellCheckingInspection
+    def _append_file(self, path):
+        with open(path, "ab") as file, self.transfer_socket.makefile("rb") as stream:
+            shutil.copyfileobj(stream, file)
+
+    # noinspection SpellCheckingInspection
+    def retr_command(self, path):
+        self.thread_pool.submit(self._sendfile, self._resolve_path(path)).add_done_callback(self._end_transfer)
+        return 125, "Data connection already open, transfer in progress"
+
+    # noinspection SpellCheckingInspection
+    def _sendfile(self, path):
+        with open(path, "rb") as file:
+            self.transfer_socket.sendfile(file)
 
     # noinspection SpellCheckingInspection
     def syst_command(self):
