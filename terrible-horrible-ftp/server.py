@@ -3,6 +3,7 @@ import logging
 import os.path
 import selectors
 import socket
+import subprocess
 
 
 class FTPServer:
@@ -149,6 +150,46 @@ class FTPConnection:
         if self._transfer_socket is None:
             self._transfer_socket, _ = self._passive_socket.accept()
         return self._transfer_socket
+
+    def _end_transfer(self, future):
+        error = future.exception()
+
+        if error is None:
+            self.socket.send(b"226 Requested action complete, closing data connection\r\n")
+        else:
+            self.socket.send(f"550 {error}\r\n".encode())  # BaseException
+
+        self._transfer_socket.close()
+        self._transfer_socket = None
+
+    # noinspection SpellCheckingInspection
+    def nlst_command(self, *args):
+        target_path = self._resolve_path(args[0]) if len(args) else self.current_directory
+
+        if not os.path.exists(target_path):
+            return 550, f"{target_path} does not exist"
+
+        self.thread_pool.submit(self._nlst_send, target_path).add_done_callback(self._end_transfer)
+        return 125, "Data connection already open, transfer in progress"
+
+    # noinspection SpellCheckingInspection
+    def _nlst_send(self, path):
+        file_list = "\r\n".join(os.listdir(path))
+        if len(file_list):
+            self.transfer_socket.send((file_list + "\r\n").encode())
+
+    def list_command(self, *args):
+        target_path = self._resolve_path(args[0]) if len(args) else self.current_directory
+
+        if not os.path.exists(target_path):
+            return 550, f"{target_path} does not exist"
+
+        self.thread_pool.submit(self._list_send, target_path).add_done_callback(self._end_transfer)
+        return 125, "Data connection already open, transfer in progress"
+
+    def _list_send(self, path):
+        file_list = subprocess.run(["ls", "-lA", path], capture_output=True).stdout
+        self.transfer_socket.send(file_list.replace(b"\n", b"\r\n"))
 
     # noinspection SpellCheckingInspection
     def syst_command(self):
