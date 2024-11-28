@@ -155,6 +155,9 @@ class FTPConnection:
             self._transfer_socket, _ = self._passive_socket.accept()
         return self._transfer_socket
 
+    def type_command(self, _):
+        return 200, "Okay"
+
     def _end_transfer(self, future):
         error = future.exception()
 
