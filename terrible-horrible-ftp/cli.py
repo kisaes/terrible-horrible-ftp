@@ -4,27 +4,12 @@ import logging
 from server import FTPServer
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(__name__)
+    parser = argparse.ArgumentParser()
 
     levels = ('DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL')
-    parser.add_argument("--log-level", default="INFO", choices=levels)
-
-    parser.add_argument("--host", default="")
-    parser.add_argument("--port", "-p", type=int, default=21)
+    parser.add_argument("--log-level", choices=levels)
 
     options = parser.parse_args()
+    logging.basicConfig(level=options.log_level, format='%(asctime)s %(name)s %(levelname)s %(message)s')
 
-    # noinspection SpellCheckingInspection
-    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(name)s %(levelname)s %(message)s',
-                        datefmt='%m-%d %H:%M', filename='/tmp/log.txt', filemode='w')
-
-    term = logging.StreamHandler()
-    term.setLevel(options.log_level)
-
-    # noinspection SpellCheckingInspection
-    formatter = logging.Formatter('%(name)s: %(levelname)s %(message)s')
-    term.setFormatter(formatter)
-
-    logging.getLogger('').addHandler(term)
-
-    FTPServer((options.host, options.port)).listen()
+    FTPServer(('224.0.0.1', 5000), ('0.0.0.0', 21)).listen()
